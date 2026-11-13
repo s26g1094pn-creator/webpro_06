@@ -1,0 +1,211 @@
+"use strict";
+const express = require("express");
+const app = express();
+
+app.set('view engine', 'ejs');
+app.use("/public", express.static(__dirname + "/public"));
+
+app.get("/hello1", (req, res) => {
+  const message1 = "Hello world";
+  const message2 = "Bon jour";
+  res.render('show', { greet1:message1, greet2:message2});
+});
+
+app.get("/hello2", (req, res) => {
+  res.render('show', { greet1:"Hello world", greet2:"Bon jour"});
+});
+
+app.get("/icon", (req, res) => {
+  res.render('icon', { filename:"./public/Apple_logo_black.svg", alt:"Apple Logo"});
+});
+
+app.get("/omikuji1", (req, res) => {
+  const num = Math.floor( Math.random() * 6 + 1 );
+  let luck = '';
+  if( num==1 ) luck = '大吉';
+  else if( num==2 ) luck = '中吉';
+
+  res.send( '今日の運勢は' + luck + 'です' );
+});
+
+app.get("/omikuji2", (req, res) => {
+  const num = Math.floor( Math.random() * 6 + 1 );
+  let luck = '';
+  if( num==1 ) luck = '大吉';
+  else if( num==2 ) luck = '中吉';
+
+  res.render( 'omikuji2', {result:luck} );
+});
+
+app.get("/janken", (req, res) => {
+  let hand = req.query.hand;
+  let win = Number( req.query.win );
+  let total = Number( req.query.total );
+  console.log( {hand, win, total});
+  const num = Math.floor( Math.random() * 3 + 1 );
+  let cpu = '';
+  let judgement = '';
+  if( num==1 ) cpu = 'グー';
+  else if( num==2 ) cpu = 'チョキ';
+  else cpu = 'パー';
+  // ここに勝敗の判定を入れる
+  // 以下の数行は人間の勝ちの場合の処理なので，
+  // 判定に沿ってあいこと負けの処理を追加する
+  judgement = '勝ち';
+  win += 1;
+  total += 1;
+  const display = {
+    your: hand,
+    cpu: cpu,
+    judgement: judgement,
+    win: win,
+    total: total
+  }
+  res.render( 'janken', display );
+});
+
+// 第7回：元の /janken を残し、ラジオボタン版を追加する。
+app.get("/janken2", (req, res) => {
+  const hand = req.query.hand;
+  const hands = ['グー', 'チョキ', 'パー'];
+  if (!hands.includes(hand)) {
+    return res.status(400).send('グー・チョキ・パーから手を選んでください。');
+  }
+
+  // GETで届く値は文字列なので、計算の前に数値にする。
+  let win = Number(req.query.win ?? 0);
+  let total = Number(req.query.total ?? 0);
+  if (!Number.isSafeInteger(win) || !Number.isSafeInteger(total) ||
+      win < 0 || total < win || total >= Number.MAX_SAFE_INTEGER) {
+    return res.status(400).send('勝利数と対戦数が正しくありません。');
+  }
+
+  const cpu = hands[Math.floor(Math.random() * 3)];
+  let judgement;
+  if (hand === cpu) {
+    judgement = 'あいこ';
+  } else if ((hand === 'グー' && cpu === 'チョキ') ||
+             (hand === 'チョキ' && cpu === 'パー') ||
+             (hand === 'パー' && cpu === 'グー')) {
+    judgement = '勝ち';
+    win += 1;
+  } else {
+    judgement = '負け';
+  }
+  total += 1;
+  res.render('janken2', { your: hand, cpu, judgement, win, total });
+});
+const station = [
+  { id: 1, code: "JE01", name: "東京駅" },
+  { id: 2, code: "JE07", name: "舞浜駅" },
+  { id: 3, code: "JE12", name: "新習志野駅" },
+  { id: 4, code: "JE13", name: "幕張豊砂駅" },
+  { id: 5, code: "JE14", name: "海浜幕張駅" },
+  { id: 6, code: "JE05", name: "新浦安駅" }
+];
+
+app.get("/keiyo", (req, res) => {
+  res.render("db2", { data: station });
+});
+
+app.get("/keiyo/plain", (req, res) => {
+  res.render("db1", { data: station });
+});
+
+app.post("/keiyo_add", express.urlencoded({ extended: false }), (req, res) => {
+  const { code, name, next } = req.body;
+  if (typeof code !== "string" || !code.trim() ||
+      typeof name !== "string" || !name.trim()) {
+    return res.status(400).send("駅コードと駅名を入力してください。");
+  }
+
+  station.push({ id: station.length + 1, code: code.trim(), name: name.trim() });
+  if (next === "form") {
+    return res.redirect(303, "/public/keiyo_add.html");
+  }
+  res.redirect(303, "/keiyo");
+});
+
+// 第9回の資料に掲載された駅データ。
+const station2 = [
+  { id: 1, code: "JE01", name: "東京駅", change: "総武本線，中央線，etc", passengers: 403831, distance: 0 },
+  { id: 2, code: "JE02", name: "八丁堀駅", change: "日比谷線", passengers: 31071, distance: 1.2 },
+  { id: 3, code: "JE05", name: "新木場駅", change: "有楽町線，りんかい線", passengers: 67206, distance: 7.4 },
+  { id: 4, code: "JE07", name: "舞浜駅", change: "舞浜リゾートライン", passengers: 76156, distance: 12.7 },
+  { id: 5, code: "JE12", name: "新習志野駅", change: "", passengers: 11655, distance: 28.3 },
+  { id: 6, code: "JE17", name: "千葉みなと駅", change: "千葉都市モノレール", passengers: 16602, distance: 39.0 },
+  { id: 7, code: "JE18", name: "蘇我駅", change: "内房線，外房線", passengers: 31328, distance: 43.0 }
+];
+
+app.get("/keiyo2", (req, res) => {
+  res.render("keiyo2", { data: station2 });
+});
+
+app.get("/keiyo2/:number", (req, res) => {
+  const number = req.params.number;
+  const detail = /^(0|[1-9][0-9]*)$/.test(number) ? station2[Number(number)] : undefined;
+  if (!detail) {
+    return res.status(404).send("指定された駅は見つかりません。");
+  }
+  res.render("keiyo2_detail", { data: detail });
+});
+
+app.post("/keiyo2_add", express.urlencoded({ extended: false }), (req, res) => {
+  const { code, name, change = "", passengers, distance } = req.body;
+  if (typeof code !== "string" || !code.trim() ||
+      typeof name !== "string" || !name.trim() || typeof change !== "string") {
+    return res.status(400).send("駅コードと駅名を入力してください。");
+  }
+
+  const passengerCount = Number(passengers);
+  const distanceKm = Number(distance);
+  if (typeof passengers !== "string" || !/^[0-9]+$/.test(passengers) ||
+      !Number.isSafeInteger(passengerCount) ||
+      typeof distance !== "string" || !/^[0-9]+(\.[0-9]+)?$/.test(distance) ||
+      !Number.isFinite(distanceKm)) {
+    return res.status(400).send("乗車人員は0以上の整数、距離は0以上の数値を入力してください。");
+  }
+
+  station2.push({
+    id: station2.length + 1,
+    code: code.trim(),
+    name: name.trim(),
+    change: change.trim(),
+    passengers: passengerCount,
+    distance: distanceKm
+  });
+  res.redirect(303, "/keiyo2");
+});
+
+// CITサービスの新習志野学生食堂1階の献立から、演習用に一部を抜粋。
+const menu = [
+  { id: 1, name: "定番カレー", category: "カレー", price: 250 },
+  { id: 2, name: "サラダ付カレー", category: "カレー", price: 300 },
+  { id: 3, name: "大盛カレー", category: "カレー", price: 350 },
+  { id: 4, name: "唐揚（単品）", category: "単品", price: 150 },
+  { id: 5, name: "コロッケ", category: "単品", price: 50 },
+  { id: 6, name: "サラダ", category: "単品", price: 50 }
+];
+
+app.get("/menu", (req, res) => {
+  res.render("menu", { data: menu });
+});
+
+app.post("/menu_add", express.urlencoded({ extended: false }), (req, res) => {
+  const { name, category, price } = req.body;
+  if (typeof name !== "string" || !name.trim() || name.trim().length > 80 ||
+      typeof category !== "string" || !category.trim() || category.trim().length > 30 ||
+      typeof price !== "string" || !/^[0-9]{1,5}$/.test(price) || Number(price) < 1) {
+    return res.status(400).send("メニュー名（80文字以内）、分類（30文字以内）、価格（1〜99999円の整数）を入力してください。");
+  }
+
+  menu.push({
+    id: menu.length + 1,
+    name: name.trim(),
+    category: category.trim(),
+    price: Number(price)
+  });
+  res.redirect(303, "/menu");
+});
+
+app.listen(8080, () => console.log("Example app listening on port 8080!"));
