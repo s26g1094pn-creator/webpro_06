@@ -137,44 +137,74 @@ const station2 = [
   { id: 7, code: "JE18", name: "蘇我駅", change: "内房線，外房線", passengers: 31328, distance: 43.0 }
 ];
 
+// 第10回：numberは配列の位置。表示用IDは削除後も再利用しない。
+let nextStationId = Math.max(...station2.map(row => row.id)) + 1;
+const stationForm = express.urlencoded({ extended: false });
+
+function findStation(req, res, next) {
+  const number = req.params.number;
+  if (!/^(0|[1-9][0-9]*)$/.test(number) || !station2[Number(number)]) {
+    return res.status(404).send("指定された駅は見つかりません。");
+  }
+  res.locals.number = Number(number);
+  res.locals.station = station2[Number(number)];
+  next();
+}
+
+function readStation(body) {
+  const { code, name, change = "", passengers, distance } = body;
+  if (typeof code !== "string" || !code.trim() ||
+      typeof name !== "string" || !name.trim() || typeof change !== "string" ||
+      typeof passengers !== "string" || !/^[0-9]+$/.test(passengers) ||
+      !Number.isSafeInteger(Number(passengers)) ||
+      typeof distance !== "string" || !/^[0-9]+(\.[0-9]+)?$/.test(distance) ||
+      !Number.isFinite(Number(distance))) return null;
+  return { code: code.trim(), name: name.trim(), change: change.trim(),
+    passengers: Number(passengers), distance: Number(distance) };
+}
+
 app.get("/keiyo2", (req, res) => {
   res.render("keiyo2", { data: station2 });
 });
 
-app.get("/keiyo2/:number", (req, res) => {
-  const number = req.params.number;
-  const detail = /^(0|[1-9][0-9]*)$/.test(number) ? station2[Number(number)] : undefined;
-  if (!detail) {
-    return res.status(404).send("指定された駅は見つかりません。");
-  }
-  res.render("keiyo2_detail", { data: detail });
+// :numberより先にcreateを登録する。
+app.get("/keiyo2/create", (req, res) => {
+  res.redirect("/public/keiyo2_new.html");
 });
 
-app.post("/keiyo2_add", express.urlencoded({ extended: false }), (req, res) => {
-  const { code, name, change = "", passengers, distance } = req.body;
-  if (typeof code !== "string" || !code.trim() ||
-      typeof name !== "string" || !name.trim() || typeof change !== "string") {
-    return res.status(400).send("駅コードと駅名を入力してください。");
-  }
-
-  const passengerCount = Number(passengers);
-  const distanceKm = Number(distance);
-  if (typeof passengers !== "string" || !/^[0-9]+$/.test(passengers) ||
-      !Number.isSafeInteger(passengerCount) ||
-      typeof distance !== "string" || !/^[0-9]+(\.[0-9]+)?$/.test(distance) ||
-      !Number.isFinite(distanceKm)) {
-    return res.status(400).send("乗車人員は0以上の整数、距離は0以上の数値を入力してください。");
-  }
-
-  station2.push({
-    id: station2.length + 1,
-    code: code.trim(),
-    name: name.trim(),
-    change: change.trim(),
-    passengers: passengerCount,
-    distance: distanceKm
-  });
+function createStation(req, res) {
+  const data = readStation(req.body);
+  if (!data) return res.status(400).send("駅コード・駅名、0以上の整数の乗車人員、0以上の距離を入力してください。");
+  station2.push({ id: nextStationId++, ...data });
   res.redirect(303, "/keiyo2");
+}
+app.post("/keiyo2", stationForm, createStation);
+// 第9回の登録フォームからも利用できる。
+app.post("/keiyo2_add", stationForm, createStation);
+
+app.get("/keiyo2/edit/:number", findStation, (req, res) => {
+  res.render("keiyo2_edit", { id: res.locals.number, data: res.locals.station });
+});
+
+app.post("/keiyo2/update/:number", stationForm, findStation, (req, res) => {
+  const data = readStation(req.body);
+  if (!data) return res.status(400).send("駅コード・駅名、0以上の整数の乗車人員、0以上の距離を入力してください。");
+  Object.assign(res.locals.station, data);
+  res.redirect(303, "/keiyo2");
+});
+
+// 詳細画面から削除確認へ進み、フォームを送信したときに削除する。
+app.get("/keiyo2/delete/:number", findStation, (req, res) => {
+  res.render("keiyo2_delete", { id: res.locals.number, data: res.locals.station });
+});
+
+app.post("/keiyo2/delete/:number", stationForm, findStation, (req, res) => {
+  station2.splice(res.locals.number, 1);
+  res.redirect(303, "/keiyo2");
+});
+
+app.get("/keiyo2/:number", findStation, (req, res) => {
+  res.render("keiyo2_detail", { id: res.locals.number, data: res.locals.station });
 });
 
 // CITサービスの新習志野学生食堂1階の献立から、演習用に一部を抜粋。
